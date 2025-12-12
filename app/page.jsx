@@ -1161,12 +1161,15 @@ export default function Home() {
                       className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:border-amber-400 focus:outline-none"
                     >
                       <option value="" className="bg-[#0d1c30]">Seleccionar...</option>
+                      <option value="franela" className="bg-[#0d1c30]">Franela</option>
                       <option value="camisa" className="bg-[#0d1c30]">Camisa</option>
                       <option value="chemise" className="bg-[#0d1c30]">Chemise</option>
                       <option value="pantalon" className="bg-[#0d1c30]">Pantalón</option>
                       <option value="campera" className="bg-[#0d1c30]">Campera</option>
                       <option value="sweater" className="bg-[#0d1c30]">Sweater</option>
                       <option value="vestido" className="bg-[#0d1c30]">Vestido</option>
+                      <option value="conjunto" className="bg-[#0d1c30]">Conjunto</option>
+                      <option value="short" className="bg-[#0d1c30]">Short</option>
                       {/* <option value="bolso" className="bg-[#0d1c30]">Bolso</option>
                       <option value="accesorio" className="bg-[#0d1c30]">Accesorio</option> */}
                     </select>
