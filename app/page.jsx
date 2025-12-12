@@ -43,6 +43,17 @@ export default function Home() {
     stock: "",
   });
 
+  useEffect(() => {
+    if (!selectedProduct) return;
+    setCurrentImageIndex(0);
+  }, [selectedProduct?.id]);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const imagesCount = productImages[selectedProduct.name]?.length || 1;
+    if (currentImageIndex >= imagesCount) setCurrentImageIndex(0);
+  }, [selectedProduct, productImages, currentImageIndex]);
+
   // Función para filtrar productos por categoría
   const handleCategoryFilter = (category) => {
     setSelectedCategory(category);
@@ -152,6 +163,17 @@ export default function Home() {
         const updatedProducts = allProducts.filter(p => p.id !== product.id);
         setAllProducts(updatedProducts);
         setProducts(updatedProducts.filter(p => selectedCategory === "Todo" || p.tipo === selectedCategory));
+
+        setProductImages(prev => {
+          const next = { ...prev };
+          delete next[product.id];
+          return next;
+        });
+
+        if (selectedProduct?.id === product.id) {
+          setSelectedProduct(null);
+          setCurrentImageIndex(0);
+        }
         
         // Eliminar del carrito si está ahí
         setCart(cart.filter(item => item.name !== product.name));
@@ -278,7 +300,7 @@ export default function Home() {
           // Actualizar productImages
           const newProductImages = {};
           data.forEach(p => {
-            newProductImages[p.nombre] = p.imagenes;
+            newProductImages[p.id] = p.imagenes;
           });
           setProductImages(newProductImages);
         }
@@ -370,6 +392,11 @@ export default function Home() {
         
         setAllProducts(updatedProducts);
         setProducts(updatedProducts.filter(p => selectedCategory === "Todo" || p.tipo === selectedCategory));
+
+        setProductImages(prev => ({
+          ...prev,
+          [editingProduct.id]: updatedProductData.imagenes || []
+        }));
         
         // Resetear formulario
         setNewProduct({
@@ -453,6 +480,11 @@ export default function Home() {
         const updatedProducts = [...allProducts, formattedNewProduct];
         setAllProducts(updatedProducts);
         setProducts(updatedProducts.filter(p => selectedCategory === "Todo" || p.tipo === selectedCategory));
+
+        setProductImages(prev => ({
+          ...prev,
+          [formattedNewProduct.id]: newProductData.imagenes || []
+        }));
         
         // Resetear formulario
         setNewProduct({
@@ -655,7 +687,7 @@ export default function Home() {
         <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((product) => (
             <article
-              key={product.name}
+              key={product.id}
               className="group overflow-hidden rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition"
             >
               <div
@@ -754,7 +786,7 @@ export default function Home() {
           <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {products.filter(p => p.oldPrice).map((product) => (
               <article
-                key={product.name}
+                key={product.id}
                 className="group overflow-hidden rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition"
               >
                 <div
@@ -855,7 +887,7 @@ export default function Home() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
         >
           <div
-            className="relative max-w-3xl w-full bg-[#0d1c30] rounded-2xl overflow-hidden border border-white/10 max-h-[90vh] flex flex-col md:max-h-none"
+            className="relative max-w-3xl w-full h-[85vh] max-h-[85vh] bg-[#0d1c30] rounded-2xl overflow-hidden border border-white/10 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -866,16 +898,16 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-              <div className="relative h-full min-h-[300px] sm:min-h-[400px] bg-black rounded-lg overflow-hidden">
+            <div className="grid md:grid-cols-2 gap-4 md:gap-6 h-full min-h-0">
+              <div className="relative bg-black rounded-lg overflow-hidden h-full min-h-0">
                 <img
-                  src={getImageUrl(productImages[selectedProduct.name]?.[currentImageIndex] || selectedProduct.image)}
+                  src={getImageUrl(productImages[selectedProduct.id]?.[currentImageIndex] || selectedProduct.image)}
                   alt={selectedProduct.name}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
                 {/* Flechas de navegación */}
                 <button
-                  onClick={() => setCurrentImageIndex((prev) => prev === 0 ? (productImages[selectedProduct.name]?.length || 1) - 1 : prev - 1)}
+                  onClick={() => setCurrentImageIndex((prev) => prev === 0 ? (productImages[selectedProduct.id]?.length || 1) - 1 : prev - 1)}
                   className="absolute left-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -883,7 +915,7 @@ export default function Home() {
                   </svg>
                 </button>
                 <button
-                  onClick={() => setCurrentImageIndex((prev) => prev === (productImages[selectedProduct.name]?.length || 1) - 1 ? 0 : prev + 1)}
+                  onClick={() => setCurrentImageIndex((prev) => prev === (productImages[selectedProduct.id]?.length || 1) - 1 ? 0 : prev + 1)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -892,7 +924,7 @@ export default function Home() {
                 </button>
                 {/* Indicadores */}
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
-                  {productImages[selectedProduct.name]?.map((_, idx) => (
+                  {productImages[selectedProduct.id]?.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentImageIndex(idx)}
@@ -901,7 +933,7 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-              <div className="p-6 flex flex-col justify-center">
+              <div className="p-6 flex flex-col justify-center overflow-y-auto min-h-0">
                 <h2 className="text-2xl font-bold text-white">{selectedProduct.name}</h2>
                 <div className="mt-2 flex items-center gap-3">
                   <span className="text-3xl font-bold text-amber-400">{selectedProduct.price}</span>

@@ -12,7 +12,27 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middlewares
-app.use(cors());
+const allowedOrigins = [
+  'https://cheapshop.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001'
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Permitir requests sin Origin (por ejemplo, health checks / curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    return callback(new Error(`CORS bloqueado para el origen: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -35,6 +55,11 @@ app.get('/api', (req, res) => {
 
 // Manejo de errores
 app.use((err, req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && (allowedOrigins.includes(requestOrigin) || requestOrigin.endsWith('.vercel.app'))) {
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
   console.error(err.stack);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
