@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -39,6 +39,8 @@ export default function Home() {
   const [submittingProduct, setSubmittingProduct] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [productsLoadAttempt, setProductsLoadAttempt] = useState(0);
+  const [productsLoadError, setProductsLoadError] = useState(null);
   const [newProduct, setNewProduct] = useState({
     tipo: "",
     nombre: "",
@@ -363,70 +365,91 @@ export default function Home() {
   };
 
   // Cargar productos desde el servidor
-  useEffect(() => {
-    const fetchProducts = async () => {
+  const loadProducts = useCallback(async () => {
+    const MAX_ATTEMPTS = 4;
+    const RETRY_DELAY_MS = 4000;
+
+    setLoading(true);
+    setProductsLoadError(null);
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      setProductsLoadAttempt(attempt);
+
       try {
-        const response = await fetch(`${API_URL}/api/productos`);
-        if (response.ok) {
-          const data = await response.json();
-          // Convertir formato del servidor al formato del frontend
-          const formattedProducts = data.map(p => {
-            console.log('Procesando producto del servidor:', p);
-            const formatted = {
-              id: p.id, // Agregar id numérico para identificar
-              productId: p.productId, // Mantener productId para imágenes
-              name: p.nombre,
-              price: `$${p.precio}`,
-              ...(p.precioAnterior && { oldPrice: `$${p.precioAnterior}` }),
-              image: p.imagenes && p.imagenes.length > 0 ? p.imagenes[0] : null,
-              descripcion: p.descripcion,
-              talles: p.talles,
-              colores: p.colores,
-              stock: p.stock,
-              tipo: p.tipo, // Agregar tipo para filtrar
-            };
-            console.log('Producto formateado:', formatted);
-            return formatted;
-          });
-          
-          console.log('Productos cargados en frontend:', formattedProducts.map(p => ({ 
-          id: p.id, 
-          productId: p.productId,
-          name: p.name, 
-          image: p.image,
-          tipo: typeof p.id,
-          hasId: !!p.id,
-          hasProductId: !!p.productId
-        })));
-          setAllProducts(formattedProducts);
-          // Extraer categorías únicas de los productos
-          const uniqueTypes = [...new Set(data.map(p => p.tipo))];
-          const allCategories = ["Todo", ...uniqueTypes];
-          
-          setProducts(formattedProducts);
-          setCategories(allCategories);
-          
-          console.log('Productos del servidor:', data);
-          console.log('Productos formateados:', formattedProducts);
-          console.log('Categorías encontradas:', allCategories);
-          console.log('URL de la primera imagen:', getImageUrl(formattedProducts[0]?.image));
-          
-          // Actualizar productImages
-          const newProductImages = {};
-          data.forEach(p => {
-            newProductImages[p.id] = p.imagenes;
-          });
-          setProductImages(newProductImages);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        const response = await fetch(`${API_URL}/api/productos`, {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        const data = await response.json();
+
+        // Convertir formato del servidor al formato del frontend
+        const formattedProducts = data.map(p => {
+          console.log('Procesando producto del servidor:', p);
+          const formatted = {
+            id: p.id, // Agregar id numérico para identificar
+            productId: p.productId, // Mantener productId para imágenes
+            name: p.nombre,
+            price: `$${p.precio}`,
+            ...(p.precioAnterior && { oldPrice: `$${p.precioAnterior}` }),
+            image: p.imagenes && p.imagenes.length > 0 ? p.imagenes[0] : null,
+            descripcion: p.descripcion,
+            talles: p.talles,
+            colores: p.colores,
+            stock: p.stock,
+            tipo: p.tipo, // Agregar tipo para filtrar
+          };
+          console.log('Producto formateado:', formatted);
+          return formatted;
+        });
+
+        setAllProducts(formattedProducts);
+
+        // Extraer categorías únicas de los productos
+        const uniqueTypes = [...new Set(data.map(p => p.tipo))];
+        const allCategories = ["Todo", ...uniqueTypes];
+
+        setProducts(formattedProducts);
+        setCategories(allCategories);
+
+        // Actualizar productImages
+        const newProductImages = {};
+        data.forEach(p => {
+          newProductImages[p.id] = p.imagenes;
+        });
+        setProductImages(newProductImages);
+
+        setProductsLoadError(null);
+        setLoading(false);
+        return;
       } catch (error) {
         console.error('Error al cargar productos:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchProducts();
+        if (attempt < MAX_ATTEMPTS) {
+          await sleep(RETRY_DELAY_MS);
+          continue;
+        }
+
+        setProductsLoadError('Estamos preparando los productos disponibles. Por favor intenta nuevamente en unos segundos.');
+        setLoading(false);
+        return;
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   const handleProductUpdate = async (e) => {
     console.log('=== INICIANDO ACTUALIZACIÓN DE PRODUCTO ===');
@@ -820,6 +843,31 @@ export default function Home() {
 
       {/* Grid de productos */}
       <section id="productos" className="mx-auto max-w-6xl px-4 py-10">
+        {loading && (
+          <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-amber-400" />
+              <div className="text-sm text-slate-300">
+                Cargando productos disponibles... ({productsLoadAttempt}/4)
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              En breve estarán listos para que puedas verlos.
+            </div>
+          </div>
+        )}
+
+        {!loading && productsLoadError && (
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+            <div className="text-sm text-red-200">{productsLoadError}</div>
+            <button
+              onClick={loadProducts}
+              className="mt-3 rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300 transition"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((product) => (
             <article
