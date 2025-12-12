@@ -43,6 +43,52 @@ export default function Home() {
     stock: "",
   });
 
+  const validatePortraitImages = async (files) => {
+    const validations = await Promise.all(
+      files.map((file) =>
+        new Promise((resolve) => {
+          const objectUrl = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+            const isPortrait = img.naturalHeight > img.naturalWidth;
+            URL.revokeObjectURL(objectUrl);
+            resolve({ file, isPortrait, width: img.naturalWidth, height: img.naturalHeight });
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve({ file, isPortrait: false, width: 0, height: 0 });
+          };
+          img.src = objectUrl;
+        })
+      )
+    );
+
+    const validFiles = validations.filter(v => v.isPortrait).map(v => v.file);
+    const invalid = validations.filter(v => !v.isPortrait);
+    return { validFiles, invalid };
+  };
+
+  const handleImagesChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) {
+      setNewProduct({ ...newProduct, imagenes: [] });
+      return;
+    }
+
+    const { validFiles, invalid } = await validatePortraitImages(files);
+    if (invalid.length > 0) {
+      const detail = invalid
+        .map(v => `${v.file.name}${v.width && v.height ? ` (${v.width}x${v.height})` : ''}`)
+        .join('\n');
+      alert(`Solo se permiten imágenes más altas que anchas (verticales).\n\nImágenes rechazadas:\n${detail}`);
+      e.target.value = '';
+      setNewProduct({ ...newProduct, imagenes: [] });
+      return;
+    }
+
+    setNewProduct({ ...newProduct, imagenes: validFiles });
+  };
+
   useEffect(() => {
     if (!selectedProduct) return;
     setCurrentImageIndex(0);
@@ -50,7 +96,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!selectedProduct) return;
-    const imagesCount = productImages[selectedProduct.name]?.length || 1;
+    const imagesCount = productImages[selectedProduct.id]?.length || 1;
     if (currentImageIndex >= imagesCount) setCurrentImageIndex(0);
   }, [selectedProduct, productImages, currentImageIndex]);
 
@@ -329,6 +375,18 @@ export default function Home() {
     console.log('Talles procesados:', tallesArray);
     console.log('Colores procesados:', coloresArray);
     
+    if (newProduct.imagenes.length > 0) {
+      const { invalid } = await validatePortraitImages(newProduct.imagenes);
+      if (invalid.length > 0) {
+        const detail = invalid
+          .map(v => `${v.file.name}${v.width && v.height ? ` (${v.width}x${v.height})` : ''}`)
+          .join('\n');
+        alert(`Solo se permiten imágenes más altas que anchas (verticales).\n\nImágenes rechazadas:\n${detail}`);
+        setSubmittingProduct(false);
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append('tipo', newProduct.tipo);
     formData.append('nombre', newProduct.nombre);
@@ -435,6 +493,16 @@ export default function Home() {
       const tallesArray = newProduct.talles.split(',').map(t => t.trim()).filter(t => t);
       const coloresArray = newProduct.colores.split(',').map(c => c.trim()).filter(c => c);
       
+      const { invalid } = await validatePortraitImages(newProduct.imagenes);
+      if (invalid.length > 0) {
+        const detail = invalid
+          .map(v => `${v.file.name}${v.width && v.height ? ` (${v.width}x${v.height})` : ''}`)
+          .join('\n');
+        alert(`Solo se permiten imágenes más altas que anchas (verticales).\n\nImágenes rechazadas:\n${detail}`);
+        setSubmittingProduct(false);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('tipo', newProduct.tipo);
       formData.append('nombre', newProduct.nombre);
@@ -684,14 +752,14 @@ export default function Home() {
 
       {/* Grid de productos */}
       <section id="productos" className="mx-auto max-w-6xl px-4 py-10">
-        <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((product) => (
             <article
               key={product.id}
               className="group overflow-hidden rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition"
             >
               <div
-                className="relative aspect-square overflow-hidden cursor-pointer"
+                className="relative aspect-[4/3] overflow-hidden cursor-pointer"
                 onClick={() => {
                   setSelectedProduct(product);
                   setCurrentImageIndex(0);
@@ -709,22 +777,22 @@ export default function Home() {
                   </span>
                 )}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
-                  <svg className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                  <svg className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                   </svg>
                 </div>
               </div>
-              <div className="p-3">
-                <h3 className="text-sm font-medium text-white truncate">{product.name}</h3>
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="text-lg font-bold text-amber-400">{product.price}</span>
+              <div className="p-1.5">
+                <h3 className="text-xs font-medium text-white truncate">{product.name}</h3>
+                <div className="mt-0.5 flex items-center gap-1">
+                  <span className="text-sm font-bold text-amber-400">{product.price}</span>
                   {product.oldPrice && (
-                    <span className="text-sm text-slate-500 line-through">{product.oldPrice}</span>
+                    <span className="text-xs text-slate-500 line-through">{product.oldPrice}</span>
                   )}
                 </div>
                 <button 
                   onClick={() => addToCart(product)}
-                  className="mt-3 w-full rounded-lg bg-white/10 py-2 text-sm font-medium text-white hover:bg-amber-400 hover:text-slate-900 transition"
+                  className="mt-1 w-full rounded-lg bg-white/10 py-1 text-xs font-medium text-white hover:bg-amber-400 hover:text-slate-900 transition"
                 >
                   Agregar al carrito
                 </button>
@@ -734,48 +802,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Banner de beneficios */}
-      {/* <section className="border-t border-white/10">
-        <div className="mx-auto max-w-6xl px-4 py-16">
-          <div className="grid gap-8 sm:grid-cols-3">
-            <div className="group rounded-2xl border border-white/10 bg-linear-to-b from-white/[0.08] to-transparent p-6 transition hover:border-amber-400/30">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10">
-                <svg className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Envío express</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                Recibí tu pedido en 24-48 horas. Seguimiento en tiempo real desde que sale del depósito.
-              </p>
-            </div>
-            <div className="group rounded-2xl border border-white/10 bg-linear-to-b from-white/[0.08] to-transparent p-6 transition hover:border-amber-400/30">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10">
-                <svg className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Cambios sin costo</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                30 días para cambiar talle o color. Retiramos en tu domicilio sin cargo extra.
-              </p>
-            </div>
-            <div className="group rounded-2xl border border-white/10 bg-linear-to-b from-white/[0.08] to-transparent p-6 transition hover:border-amber-400/30">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10">
-                <svg className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Atención personalizada</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                Escribinos por WhatsApp o email. Respondemos en minutos, no en días.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section> */}
-
       {/* Sección de Ofertas */}
       <section id="ofertas" className="border-t border-white/10">
         <div className="mx-auto max-w-6xl px-4 py-16">
@@ -783,14 +809,14 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-white">Ofertas Especiales</h2>
             <p className="mt-2 text-slate-400">Aprovecha los descuentos exclusivos.</p>
           </div>
-          <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {products.filter(p => p.oldPrice).map((product) => (
               <article
                 key={product.id}
                 className="group overflow-hidden rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition"
               >
                 <div
-                  className="relative aspect-square overflow-hidden cursor-pointer"
+                  className="relative aspect-[4/3] overflow-hidden cursor-pointer"
                   onClick={() => {
                     setSelectedProduct(product);
                     setCurrentImageIndex(0);
@@ -802,24 +828,24 @@ export default function Home() {
                     className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                     loading="lazy"
                   />
-                  <span className="absolute top-2 left-2 rounded bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                  <span className="absolute top-2 left-2 rounded bg-red-500 px-1 py-0.5 text-xs font-semibold text-white">
                     {Math.round(((parseInt(product.oldPrice.slice(1)) - parseInt(product.price.slice(1))) / parseInt(product.oldPrice.slice(1))) * 100)}% OFF
                   </span>
                   <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
-                    <svg className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                    <svg className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                     </svg>
                   </div>
                 </div>
-                <div className="p-3">
-                  <h3 className="text-sm font-medium text-white truncate">{product.name}</h3>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-lg font-bold text-amber-400">{product.price}</span>
-                    <span className="text-sm text-slate-500 line-through">{product.oldPrice}</span>
+                <div className="p-1.5">
+                  <h3 className="text-xs font-medium text-white truncate">{product.name}</h3>
+                  <div className="mt-0.5 flex items-center gap-1">
+                    <span className="text-sm font-bold text-amber-400">{product.price}</span>
+                    <span className="text-xs text-slate-500 line-through">{product.oldPrice}</span>
                   </div>
                   <button 
                     onClick={() => addToCart(product)}
-                    className="mt-3 w-full rounded-lg bg-white/10 py-2 text-sm font-medium text-white hover:bg-amber-400 hover:text-slate-900 transition"
+                    className="mt-1 w-full rounded-lg bg-white/10 py-1 text-xs font-medium text-white hover:bg-amber-400 hover:text-slate-900 transition"
                   >
                     Agregar al carrito
                   </button>
@@ -887,7 +913,7 @@ export default function Home() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
         >
           <div
-            className="relative max-w-3xl w-full h-[85vh] max-h-[85vh] bg-[#0d1c30] rounded-2xl overflow-hidden border border-white/10 flex flex-col"
+            className="relative max-w-3xl w-full max-h-[92vh] bg-[#0d1c30] rounded-2xl overflow-hidden border border-white/10 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -898,12 +924,12 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <div className="grid md:grid-cols-2 gap-4 md:gap-6 h-full min-h-0">
-              <div className="relative bg-black rounded-lg overflow-hidden h-full min-h-0">
+            <div className="grid md:grid-cols-2 gap-2 md:gap-6">
+              <div className="relative bg-black rounded-lg overflow-hidden h-72 sm:h-72 md:h-[520px]">
                 <img
                   src={getImageUrl(productImages[selectedProduct.id]?.[currentImageIndex] || selectedProduct.image)}
                   alt={selectedProduct.name}
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-cover"
                 />
                 {/* Flechas de navegación */}
                 <button
@@ -933,50 +959,58 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-              <div className="p-6 flex flex-col justify-center overflow-y-auto min-h-0">
-                <h2 className="text-2xl font-bold text-white">{selectedProduct.name}</h2>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="text-3xl font-bold text-amber-400">{selectedProduct.price}</span>
+              <div className="p-2 sm:p-6 flex flex-col justify-center overflow-hidden md:overflow-y-auto">
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-lg sm:text-2xl font-bold text-white">{selectedProduct.name}</h2>
+                  <div className="sm:hidden text-right shrink-0">
+                    <div className="text-xs font-medium text-white uppercase tracking-wide">Stock</div>
+                    <div className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-xl sm:text-3xl font-bold text-amber-400">{selectedProduct.price}</span>
                   {selectedProduct.oldPrice && (
-                    <span className="text-lg text-slate-500 line-through">{selectedProduct.oldPrice}</span>
+                    <span className="text-sm sm:text-lg text-slate-500 line-through">{selectedProduct.oldPrice}</span>
                   )}
                 </div>
-                <p className="mt-3 text-slate-400 text-sm">
+                <p className="mt-1.5 sm:mt-3 text-slate-400 text-xs sm:text-sm leading-snug">
                   {selectedProduct.descripcion || 'Prenda de alta calidad con materiales seleccionados.'}
                 </p>
                 
                 {/* Detalles compactos */}
-                <div className="mt-4 space-y-3">
-                  {/* Talles */}
-                  {selectedProduct.talles && selectedProduct.talles.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Talla</h4>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedProduct.talles.map((talle, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-white/10 text-white text-xs rounded-md border border-white/20">
-                            {talle}
-                          </span>
-                        ))}
+                <div className="mt-2 sm:mt-4 space-y-2 sm:space-y-3">
+                  {(selectedProduct.talles && selectedProduct.talles.length > 0) || (selectedProduct.colores && selectedProduct.colores.length > 0) ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Talles */}
+                      <div>
+                        <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Talla</h4>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedProduct.talles?.map((talle, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 bg-white/10 text-white text-[11px] rounded-md border border-white/20">
+                              {talle}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Colores */}
+                      <div>
+                        <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Color</h4>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedProduct.colores?.map((color, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 bg-white/10 text-white text-[11px] rounded-md border border-white/20">
+                              {color}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  )}
-                  
-                  {/* Colores */}
-                  {selectedProduct.colores && selectedProduct.colores.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Color</h4>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedProduct.colores.map((color, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-white/10 text-white text-xs rounded-md border border-white/20">
-                            {color}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  ) : null}
                   
                   {/* Stock */}
-                  <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center gap-2">
                     <h4 className="text-xs font-medium text-white uppercase tracking-wide">Stock</h4>
                     <p className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
@@ -984,10 +1018,10 @@ export default function Home() {
                   </div>
                 </div>
                 
-                <div className="mt-5 flex flex-col gap-2">
+                <div className="mt-2 sm:mt-5 flex flex-col gap-2">
                   <button 
                     onClick={() => selectedProduct.stock > 0 && addToCart(selectedProduct)}
-                    className={`w-full rounded-lg py-3 text-sm font-semibold transition ${
+                    className={`w-full rounded-lg py-2.5 sm:py-3 text-sm font-semibold transition ${
                       selectedProduct.stock > 0 
                         ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' 
                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
@@ -996,7 +1030,7 @@ export default function Home() {
                   >
                     {selectedProduct.stock > 0 ? 'Agregar al carrito' : 'Sin stock'}
                   </button>
-                  <button className="w-full rounded-lg border border-white/20 py-3 text-sm font-medium text-white hover:border-white/40 transition">
+                  <button className="w-full rounded-lg border border-white/20 py-2 sm:py-3 text-sm font-medium text-white hover:border-white/40 transition">
                     Consultar por WhatsApp
                   </button>
                 </div>
@@ -1184,14 +1218,14 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-slate-300">Imágenes</label>
-                    {adminModalStep === "edit" && editingProduct && productImages[editingProduct.name]?.length > 0 && !shouldDeleteImages ? (
+                    {adminModalStep === "edit" && editingProduct && productImages[editingProduct.id]?.length > 0 && !shouldDeleteImages ? (
                       <div className="mt-2">
                         <button
                           type="button"
                           onClick={() => setImagesModalOpen(true)}
                           className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white text-sm hover:bg-white/10 transition"
                         >
-                          Ver imágenes guardadas ({productImages[editingProduct.name]?.length || 0})
+                          Ver imágenes guardadas ({productImages[editingProduct.id]?.length || 0})
                         </button>
                         <p className="mt-1 text-xs text-slate-500">
                           Elimina las imágenes actuales para poder subir nuevas
@@ -1206,7 +1240,7 @@ export default function Home() {
                               onClick={() => setImagesModalOpen(true)}
                               className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white text-sm hover:bg-white/10 transition"
                             >
-                              Ver imágenes guardadas ({productImages[editingProduct.name]?.length || 0})
+                              Ver imágenes guardadas ({productImages[editingProduct.id]?.length || 0})
                             </button>
                           </div>
                         )}
@@ -1214,7 +1248,7 @@ export default function Home() {
                           type="file"
                           multiple
                           accept="image/*"
-                          onChange={(e) => setNewProduct({...newProduct, imagenes: Array.from(e.target.files)})}
+                          onChange={handleImagesChange}
                           required={adminModalStep !== "edit"}
                           className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-400 file:text-slate-900 hover:file:bg-amber-300"
                         />
@@ -1312,7 +1346,7 @@ export default function Home() {
             
             <div className="p-6">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                {productImages[editingProduct.name]?.map((image, index) => (
+                {productImages[editingProduct.id]?.map((image, index) => (
                   <div key={index} className="relative group">
                     <img
                       src={getImageUrl(image)}
