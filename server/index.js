@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { connectDB } = require('./config/db');
 
 // Importar rutas
 const productosRoutes = require('./routes/productos');
@@ -64,6 +65,17 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
+async function startServer() {
+  try {
+    await connectDB();
+    console.log('MongoDB conectado');
+  } catch (error) {
+    console.error('Error conectando a MongoDB:', error);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  });
+}
+
+startServer();

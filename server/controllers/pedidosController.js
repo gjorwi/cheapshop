@@ -1,9 +1,12 @@
-const { readJSON, writeJSON, getNextId } = require('../utils/fileDb');
+const mongoose = require('mongoose');
+const Pedido = require('../models/Pedido');
+const Producto = require('../models/Producto');
+const { getNextSequence } = require('../utils/counter');
 
 // Obtener todos los pedidos (admin)
 async function getPedidos(req, res) {
   try {
-    const pedidos = await readJSON('pedidos.json');
+    const pedidos = await Pedido.find({}).sort({ id: -1 }).lean();
     res.json(pedidos);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener pedidos' });
@@ -13,9 +16,8 @@ async function getPedidos(req, res) {
 // Obtener pedidos de un usuario
 async function getPedidosUsuario(req, res) {
   try {
-    const pedidos = await readJSON('pedidos.json');
-    const pedidosUsuario = pedidos.filter(p => p.usuarioId === req.usuario.id);
-    res.json(pedidosUsuario);
+    const pedidos = await Pedido.find({ usuarioId: req.usuario.id }).sort({ id: -1 }).lean();
+    res.json(pedidos);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener pedidos del usuario' });
   }
@@ -35,51 +37,59 @@ async function createPedido(req, res) {
       return res.status(400).json({ error: 'Total y dirección de envío son requeridos' });
     }
 
-    // Verificar stock disponible
-    const productos = await readJSON('productos.json');
-    for (const item of items) {
-      const producto = productos.find(p => p.id === item.productoId);
-      if (!producto) {
-        return res.status(400).json({ error: `Producto con ID ${item.productoId} no encontrado` });
-      }
-      if (producto.stock < item.cantidad) {
-        return res.status(400).json({ error: `Stock insuficiente para ${producto.nombre}` });
-      }
+    const session = await mongoose.startSession();
+    let created;
+
+    try {
+      await session.withTransaction(async () => {
+        // Verificar stock y actualizarlo de forma segura
+        for (const item of items) {
+          const updated = await Producto.findOneAndUpdate(
+            { id: item.productoId, stock: { $gte: item.cantidad } },
+            { $inc: { stock: -item.cantidad } },
+            { new: true, session }
+          );
+          if (!updated) {
+            throw new Error(`Stock insuficiente o producto no encontrado: ${item.productoId}`);
+          }
+        }
+
+        const pedidoId = await getNextSequence('pedidos');
+        const pedidoDoc = await Pedido.create(
+          [
+            {
+              id: pedidoId,
+              usuarioId: req.usuario.id,
+              items: items.map(item => ({
+                productoId: item.productoId,
+                nombre: item.nombre,
+                precio: item.precio,
+                cantidad: item.cantidad,
+                subtotal: item.precio * item.cantidad
+              })),
+              total: parseFloat(total),
+              direccionEnvio,
+              estado: 'pendiente'
+            }
+          ],
+          { session }
+        );
+
+        created = pedidoDoc[0].toObject();
+      });
+    } finally {
+      session.endSession();
     }
 
-    // Crear pedido
-    const pedido = {
-      id: await getNextId('pedidos.json'),
-      usuarioId: req.usuario.id,
-      items: items.map(item => ({
-        productoId: item.productoId,
-        nombre: item.nombre,
-        precio: item.precio,
-        cantidad: item.cantidad,
-        subtotal: item.precio * item.cantidad
-      })),
-      total: parseFloat(total),
-      direccionEnvio,
-      estado: 'pendiente', // pendiente, confirmado, enviado, entregado, cancelado
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    // Actualizar stock
-    for (const item of items) {
-      const productoIndex = productos.findIndex(p => p.id === item.productoId);
-      productos[productoIndex].stock -= item.cantidad;
-    }
-    await writeJSON('productos.json', productos);
-
-    // Guardar pedido
-    const pedidos = await readJSON('pedidos.json');
-    pedidos.push(pedido);
-    await writeJSON('pedidos.json', pedidos);
-
-    res.status(201).json(pedido);
+    res.status(201).json(created);
   } catch (error) {
     console.error(error);
+    if (String(error.message || '').includes('Stock insuficiente')) {
+      return res.status(400).json({ error: error.message });
+    }
+    if (String(error.message || '').includes('Transaction numbers are only allowed')) {
+      return res.status(500).json({ error: 'MongoDB debe ser Replica Set para transacciones. Usa MongoDB Atlas.' });
+    }
     res.status(500).json({ error: 'Error al crear pedido' });
   }
 }
@@ -94,28 +104,24 @@ async function updateEstadoPedido(req, res) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
-    const pedidos = await readJSON('pedidos.json');
-    const pedidoIndex = pedidos.findIndex(p => p.id == id);
-
-    if (pedidoIndex === -1) {
+    const pedido = await Pedido.findOne({ id: Number(id) });
+    if (!pedido) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
     }
 
     // Si se cancela, devolver stock
-    if (estado === 'cancelado' && pedidos[pedidoIndex].estado !== 'cancelado') {
-      const productos = await readJSON('productos.json');
-      for (const item of pedidos[pedidoIndex].items) {
-        const productoIndex = productos.findIndex(p => p.id === item.productoId);
-        productos[productoIndex].stock += item.cantidad;
+    if (estado === 'cancelado' && pedido.estado !== 'cancelado') {
+      for (const item of pedido.items) {
+        await Producto.updateOne(
+          { id: item.productoId },
+          { $inc: { stock: item.cantidad } }
+        );
       }
-      await writeJSON('productos.json', productos);
     }
 
-    pedidos[pedidoIndex].estado = estado;
-    pedidos[pedidoIndex].updatedAt = new Date().toISOString();
-
-    await writeJSON('pedidos.json', pedidos);
-    res.json(pedidos[pedidoIndex]);
+    pedido.estado = estado;
+    await pedido.save();
+    res.json(pedido.toObject());
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar pedido' });
   }

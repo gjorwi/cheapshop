@@ -1,13 +1,12 @@
-const fs = require('fs').promises;
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { uploadImage, deleteImage } = require('../utils/uploadImage');
-const { readJSON, writeJSON, getNextId } = require('../utils/fileDb');
+const { uploadImage } = require('../utils/uploadImage');
+const Producto = require('../models/Producto');
+const { getNextSequence } = require('../utils/counter');
 
 // Obtener todos los productos
 async function getProductos(req, res) {
   try {
-    const productos = await readJSON('productos.json');
+    const productos = await Producto.find({}).sort({ id: 1 }).lean();
     res.json(productos);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener productos' });
@@ -30,7 +29,7 @@ async function createProducto(req, res) {
     }
 
     // Generar ID único
-    const id = await getNextId('productos.json');
+    const id = await getNextSequence('productos');
     const productId = uuidv4();
     console.log('ID generado:', id, 'ProductID:', productId);
     
@@ -64,8 +63,7 @@ async function createProducto(req, res) {
     
     console.log('Total de imágenes procesadas:', imagenes.length);
 
-    // Crear objeto producto
-    const producto = {
+    const producto = await Producto.create({
       id,
       productId,
       tipo,
@@ -76,16 +74,10 @@ async function createProducto(req, res) {
       imagenes,
       talles: JSON.parse(talles),
       colores: JSON.parse(colores),
-      stock: parseInt(stock),
-      createdAt: new Date().toISOString()
-    };
+      stock: parseInt(stock)
+    });
 
-    // Guardar producto
-    const productos = await readJSON('productos.json');
-    productos.push(producto);
-    await writeJSON('productos.json', productos);
-
-    res.status(201).json(producto);
+    res.status(201).json(producto.toObject());
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al crear producto' });
@@ -113,24 +105,16 @@ async function updateProducto(req, res) {
     
     console.log('ID final a usar:', id);
     
-    const productos = await readJSON('productos.json');
-    console.log('Productos disponibles:', productos.map(p => ({ id: p.id, name: p.nombre, tipo: typeof p.id })));
-    
-    const productoIndex = productos.findIndex(p => p.id == id);
-    console.log('Índice encontrado:', productoIndex);
-
-    if (productoIndex === -1) {
+    const producto = await Producto.findOne({ id: Number(id) });
+    if (!producto) {
       console.log('❌ Producto no encontrado');
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
-    // Actualizar datos
-    const producto = productos[productoIndex];
-    console.log('Producto antes de actualizar:', producto);
+    console.log('Producto antes de actualizar:', producto.toObject());
     console.log('req.body recibido:', req.body);
     console.log('req.files recibido:', req.files);
     
-    // Actualizar campos del formulario
     if (req.body.tipo) producto.tipo = req.body.tipo;
     if (req.body.nombre) producto.nombre = req.body.nombre;
     if (req.body.descripcion) producto.descripcion = req.body.descripcion;
@@ -159,11 +143,8 @@ async function updateProducto(req, res) {
       console.log('Imágenes actualizadas:', nuevasImagenes);
     }
     
-    producto.updatedAt = new Date().toISOString();
-    console.log('Producto después de actualizar:', producto);
-
-    await writeJSON('productos.json', productos);
-    res.json(producto);
+    await producto.save();
+    res.json(producto.toObject());
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar producto' });
   }
@@ -191,30 +172,11 @@ async function deleteProducto(req, res) {
     console.log('ID final a usar:', id);
     console.log('Tipo de ID recibido:', typeof id);
     
-    const productos = await readJSON('productos.json');
-    console.log('Productos disponibles:', productos.map(p => ({ id: p.id, name: p.nombre, tipo: typeof p.id })));
-    
-    const productoIndex = productos.findIndex(p => p.id == id);
-    console.log('Índice encontrado:', productoIndex);
-
-    if (productoIndex === -1) {
+    const deleted = await Producto.findOneAndDelete({ id: Number(id) }).lean();
+    if (!deleted) {
       console.log('❌ Producto no encontrado');
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
-
-    const producto = productos[productoIndex];
-    
-    // Eliminar carpeta de imágenes
-    if (producto.productId) {
-      const productDir = path.join(__dirname, '../public/uploads/productos', producto.productId);
-      try {
-        await fs.rmdir(productDir, { recursive: true });
-      } catch {}
-    }
-
-    // Eliminar del array
-    productos.splice(productoIndex, 1);
-    await writeJSON('productos.json', productos);
 
     res.json({ message: 'Producto eliminado' });
   } catch (error) {
