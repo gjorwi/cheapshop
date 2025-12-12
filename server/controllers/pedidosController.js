@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Pedido = require('../models/Pedido');
 const Producto = require('../models/Producto');
 const { getNextSequence } = require('../utils/counter');
+const { sendNewOrderEmail } = require('../utils/mailer');
 
 // Obtener todos los pedidos (admin)
 async function getPedidos(req, res) {
@@ -51,11 +52,19 @@ async function createPedido(req, res) {
 
     try {
       await session.withTransaction(async () => {
-        // Verificar stock y actualizarlo de forma segura
+        // Verificar disponibilidad (stock - reservadoPendiente) y reservar (pendiente)
         for (const item of items) {
           const updated = await Producto.findOneAndUpdate(
-            { id: item.productoId, stock: { $gte: item.cantidad } },
-            { $inc: { stock: -item.cantidad } },
+            {
+              id: item.productoId,
+              $expr: {
+                $gte: [
+                  { $subtract: ['$stock', { $ifNull: ['$reservadoPendiente', 0] }] },
+                  item.cantidad
+                ]
+              }
+            },
+            { $inc: { reservadoPendiente: item.cantidad } },
             { new: true, session }
           );
           if (!updated) {
@@ -97,6 +106,18 @@ async function createPedido(req, res) {
     }
 
     res.status(201).json(created);
+
+    // Notificación por email al vendedor (best-effort)
+    try {
+      await sendNewOrderEmail({
+        pedido: created,
+        items: created?.items,
+        total: created?.total,
+        cliente: created?.cliente
+      });
+    } catch (e) {
+      console.error('Error enviando email de nuevo pedido:', e);
+    }
   } catch (error) {
     console.error(error);
     if (String(error.message || '').includes('Stock insuficiente')) {
@@ -124,12 +145,31 @@ async function updateEstadoPedido(req, res) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
     }
 
-    // Si se cancela, devolver stock
-    if (estado === 'cancelado' && pedido.estado !== 'cancelado') {
+    // Transiciones de estado que afectan reservas/stock
+    // - pendiente -> confirmado: descontar stock real y liberar reserva pendiente
+    // - pendiente -> cancelado: liberar reserva pendiente
+    if (pedido.estado === 'pendiente' && estado === 'confirmado') {
+      for (const item of pedido.items) {
+        const updated = await Producto.findOneAndUpdate(
+          {
+            id: item.productoId,
+            stock: { $gte: item.cantidad },
+            reservadoPendiente: { $gte: item.cantidad }
+          },
+          { $inc: { stock: -item.cantidad, reservadoPendiente: -item.cantidad } },
+          { new: true }
+        );
+        if (!updated) {
+          return res.status(400).json({ error: `No se pudo confirmar por stock/reserva inválida: ${item.productoId}` });
+        }
+      }
+    }
+
+    if (pedido.estado === 'pendiente' && estado === 'cancelado') {
       for (const item of pedido.items) {
         await Producto.updateOne(
           { id: item.productoId },
-          { $inc: { stock: item.cantidad } }
+          { $inc: { reservadoPendiente: -item.cantidad } }
         );
       }
     }

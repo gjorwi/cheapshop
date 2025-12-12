@@ -18,6 +18,7 @@ export default function Home() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [adminModalStep, setAdminModalStep] = useState(null);
+  const [adminTab, setAdminTab] = useState('productos');
   const [products, setProducts] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [categories, setCategories] = useState(["Todo"]);
@@ -41,6 +42,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [productsLoadAttempt, setProductsLoadAttempt] = useState(0);
   const [productsLoadError, setProductsLoadError] = useState(null);
+  const [adminPedidos, setAdminPedidos] = useState([]);
+  const [adminPedidosLoading, setAdminPedidosLoading] = useState(false);
+  const [adminPedidosError, setAdminPedidosError] = useState(null);
+  const [adminPedidosFiltro, setAdminPedidosFiltro] = useState('pendiente');
+  const [adminPedidoItemPreview, setAdminPedidoItemPreview] = useState(null);
   const [newProduct, setNewProduct] = useState({
     tipo: "",
     nombre: "",
@@ -77,6 +83,86 @@ export default function Home() {
     const invalid = validations.filter(v => !v.isPortrait);
     return { validFiles, invalid };
   };
+
+  const fetchAdminPedidos = useCallback(async () => {
+    try {
+      setAdminPedidosLoading(true);
+      setAdminPedidosError(null);
+
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        setAdminPedidosError('No hay sesión de administrador');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/pedidos`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setAdminPedidosError(data?.error || 'Error al cargar pedidos');
+        return;
+      }
+
+      setAdminPedidos(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+      setAdminPedidosError('Error al conectar con el servidor');
+    } finally {
+      setAdminPedidosLoading(false);
+    }
+  }, []);
+
+  const updateAdminPedidoEstado = useCallback(async (pedidoId, estado) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        alert('No hay sesión de administrador');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/pedidos/${pedidoId}/estado`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ estado })
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        alert(data?.error || 'Error al actualizar estado');
+        return;
+      }
+
+      setAdminPedidos((prev) => prev.map((p) => (p.id === pedidoId ? data : p)));
+
+      // Refrescar productos/pedidos para reflejar stock disponible y reservas sin recargar la página
+      try {
+        await loadProducts();
+      } catch (e) {
+        console.error('No se pudo refrescar productos:', e);
+      }
+      try {
+        await fetchAdminPedidos();
+      } catch (e) {
+        console.error('No se pudo refrescar pedidos:', e);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Error al conectar con el servidor');
+    }
+  }, [fetchAdminPedidos]);
+
+  useEffect(() => {
+    if (adminModalStep !== 'manage') return;
+    if (adminTab !== 'pedidos') return;
+    fetchAdminPedidos();
+  }, [adminModalStep, adminTab, fetchAdminPedidos]);
 
   const handleImagesChange = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -232,6 +318,11 @@ export default function Home() {
       setCartModalOpen(false);
       setCheckoutStep('cart');
       setCheckoutCliente({ nombre: '', cedula: '', telefono: '', email: '' });
+      try {
+        await loadProducts();
+      } catch (e) {
+        console.error('No se pudo refrescar productos:', e);
+      }
       alert(`Pedido confirmado. Número de pedido: ${data?.id ?? ''}`);
     } catch (error) {
       console.error(error);
@@ -350,6 +441,7 @@ export default function Home() {
         if (data.usuario.rol === 'admin') {
           // Guardar token en localStorage
           localStorage.setItem('adminToken', data.token);
+          setAdminTab('productos');
           setAdminModalStep("manage");
         } else {
           alert("Acceso denegado. Se requiere rol de administrador.");
@@ -407,6 +499,7 @@ export default function Home() {
             talles: p.talles,
             colores: p.colores,
             stock: p.stock,
+            reservadoPendiente: p.reservadoPendiente ?? 0,
             tipo: p.tipo, // Agregar tipo para filtrar
           };
           console.log('Producto formateado:', formatted);
@@ -877,7 +970,8 @@ export default function Home() {
               <div
                 className="relative aspect-4/3 overflow-hidden cursor-pointer"
                 onClick={() => {
-                  setSelectedProduct(product);
+                  const latest = allProducts.find(p => p.id === product.id) || product;
+                  setSelectedProduct(latest);
                   setCurrentImageIndex(0);
                 }}
               >
@@ -887,6 +981,21 @@ export default function Home() {
                   className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                   loading="lazy"
                 />
+                {Number(product.stock || 0) === 0 && (
+                  <span className="absolute top-2 right-2 rounded bg-slate-700/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    Sin stock
+                  </span>
+                )}
+                {Number(product.reservadoPendiente || 0) > 0 && (
+                  <span className="absolute top-2 left-2 rounded bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-slate-900">
+                    Pendiente
+                  </span>
+                )}
+                {Number(product.stock || 0) > 0 && (Number(product.stock || 0) - Number(product.reservadoPendiente || 0)) <= 0 && (
+                  <span className="absolute bottom-2 right-2 rounded bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    Comprometido
+                  </span>
+                )}
                 {product.oldPrice && (
                   <span className="absolute top-2 left-2 rounded bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
                     Oferta
@@ -1048,6 +1157,11 @@ export default function Home() {
                     alt={selectedProduct.name}
                     className="h-full w-full object-cover"
                   />
+                  {Number(selectedProduct.reservadoPendiente || 0) > 0 && (
+                    <div className="absolute top-2 left-2 rounded-md bg-amber-400/90 px-2 py-1 text-[11px] font-semibold text-slate-900">
+                      Pedido en espera de confirmación
+                    </div>
+                  )}
                   {/* Flechas de navegación */}
                   <button
                     onClick={() => setCurrentImageIndex((prev) => prev === 0 ? (productImages[selectedProduct.id]?.length || 1) - 1 : prev - 1)}
@@ -1081,8 +1195,20 @@ export default function Home() {
                     <h2 className="text-lg sm:text-2xl font-bold text-white">{selectedProduct.name}</h2>
                     <div className="sm:hidden text-right shrink-0">
                       <div className="text-xs font-medium text-white uppercase tracking-wide">Stock</div>
-                      <div className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
+                      <div
+                        className={`text-xs ${
+                          Number(selectedProduct.stock || 0) === 0
+                            ? 'text-red-400'
+                            : (Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) <= 0
+                              ? 'text-amber-300'
+                              : 'text-green-400'
+                        }`}
+                      >
+                        {Number(selectedProduct.stock || 0) === 0
+                          ? 'Sin stock'
+                          : (Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) <= 0
+                            ? 'Comprometido'
+                            : `${Math.max(0, Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0))} disponibles`}
                       </div>
                     </div>
                   </div>
@@ -1129,8 +1255,20 @@ export default function Home() {
                     {/* Stock */}
                     <div className="hidden sm:flex items-center gap-2">
                       <h4 className="text-xs font-medium text-white uppercase tracking-wide">Stock</h4>
-                      <p className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
+                      <p
+                        className={`text-xs ${
+                          Number(selectedProduct.stock || 0) === 0
+                            ? 'text-red-400'
+                            : (Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) <= 0
+                              ? 'text-amber-300'
+                              : 'text-green-400'
+                        }`}
+                      >
+                        {Number(selectedProduct.stock || 0) === 0
+                          ? 'Sin stock'
+                          : (Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) <= 0
+                            ? 'Comprometido'
+                            : `${Math.max(0, Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0))} disponibles`}
                       </p>
                     </div>
                   </div>
@@ -1141,15 +1279,15 @@ export default function Home() {
             <div className="sticky bottom-0 border-t border-white/10 bg-[#0d1c30] p-3 sm:p-6">
               <div className="flex flex-col gap-2">
                 <button 
-                  onClick={() => selectedProduct.stock > 0 && addToCart(selectedProduct)}
+                  onClick={() => (Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) > 0 && addToCart(selectedProduct)}
                   className={`w-full rounded-lg py-2.5 sm:py-3 text-sm font-semibold transition ${
-                    selectedProduct.stock > 0 
+                    (Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) > 0 
                       ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' 
                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
-                  disabled={selectedProduct.stock <= 0}
+                  disabled={(Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) <= 0}
                 >
-                  {selectedProduct.stock > 0 ? 'Agregar al carrito' : 'Sin stock'}
+                  {(Number(selectedProduct.stock || 0) - Number(selectedProduct.reservadoPendiente || 0)) > 0 ? 'Agregar al carrito' : (Number(selectedProduct.stock || 0) === 0 ? 'Sin stock' : 'Comprometido')}
                 </button>
                 <button className="w-full rounded-lg border border-white/20 py-2 sm:py-3 text-sm font-medium text-white hover:border-white/40 transition">
                   Consultar por WhatsApp
@@ -1170,7 +1308,10 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => setAdminModalStep(null)}
+              onClick={() => {
+                setAdminModalStep(null);
+                setAdminTab('productos');
+              }}
               className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -1180,7 +1321,32 @@ export default function Home() {
 
             {adminModalStep === "manage" ? (
               <div className="p-6 overflow-y-auto flex-1">
-                <h2 className="text-2xl font-bold text-white">Gestionar Productos</h2>
+                <h2 className="text-2xl font-bold text-white">Panel Administrador</h2>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setAdminTab('productos')}
+                    className={`rounded-lg py-2 text-sm font-semibold transition border ${
+                      adminTab === 'productos'
+                        ? 'bg-amber-400 text-slate-900 border-amber-400'
+                        : 'bg-white/5 text-white border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    Productos
+                  </button>
+                  <button
+                    onClick={() => setAdminTab('pedidos')}
+                    className={`rounded-lg py-2 text-sm font-semibold transition border ${
+                      adminTab === 'pedidos'
+                        ? 'bg-amber-400 text-slate-900 border-amber-400'
+                        : 'bg-white/5 text-white border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    Pedidos
+                  </button>
+                </div>
+
+                {adminTab === 'productos' ? (
                 <div className="mt-6 space-y-4">
                   <div className="flex gap-3">
                     <button
@@ -1233,6 +1399,129 @@ export default function Home() {
                     )}
                   </div>
                 </div>
+                ) : (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="grid grid-cols-2 gap-2 flex-1">
+                        <button
+                          onClick={() => setAdminPedidosFiltro('pendiente')}
+                          className={`rounded-lg py-2 text-xs font-semibold transition border ${
+                            adminPedidosFiltro === 'pendiente'
+                              ? 'bg-amber-400 text-slate-900 border-amber-400'
+                              : 'bg-white/5 text-white border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          Pendientes
+                        </button>
+                        <button
+                          onClick={() => setAdminPedidosFiltro('confirmado')}
+                          className={`rounded-lg py-2 text-xs font-semibold transition border ${
+                            adminPedidosFiltro === 'confirmado'
+                              ? 'bg-amber-400 text-slate-900 border-amber-400'
+                              : 'bg-white/5 text-white border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          Confirmados
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={fetchAdminPedidos}
+                        className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 transition"
+                      >
+                        Actualizar
+                      </button>
+                    </div>
+
+                    {adminPedidosLoading ? (
+                      <div className="mt-6 text-center text-slate-400 text-sm">Cargando pedidos...</div>
+                    ) : adminPedidosError ? (
+                      <div className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+                        {adminPedidosError}
+                      </div>
+                    ) : (
+                      <div className="mt-6 space-y-3">
+                        {adminPedidos
+                          .filter((p) => (adminPedidosFiltro ? p.estado === adminPedidosFiltro : true))
+                          .map((p) => (
+                            <div key={p.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-white font-semibold">Pedido #{p.id}</div>
+                                  <div className="mt-1 text-xs text-slate-400">
+                                    {p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-xs font-semibold uppercase ${p.estado === 'pendiente' ? 'text-amber-300' : 'text-green-400'}`}>
+                                    {p.estado}
+                                  </div>
+                                  <div className="mt-1 text-amber-400 font-bold">${Number(p.total || 0).toFixed(2)}</div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-2">
+                                <div className="text-xs text-slate-300">
+                                  <span className="font-semibold text-white">Cliente:</span> {p.cliente?.nombre} — {p.cliente?.telefono}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-400">{p.cliente?.email}</div>
+                                <div className="mt-1 text-xs text-slate-400">Cédula: {p.cliente?.cedula}</div>
+                              </div>
+
+                              <div className="mt-3">
+                                <div className="text-xs font-semibold text-white mb-1">Items</div>
+                                <div className="space-y-1">
+                                  {(p.items || []).map((it, idx) => (
+                                    <div key={idx} className="flex items-center justify-between gap-2 text-xs text-slate-300">
+                                      <div className="min-w-0 flex-1 flex items-center gap-2">
+                                        <span className="truncate">{it.nombre} x{it.cantidad}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const product = allProducts.find((prod) => prod.id === it.productoId);
+                                            const image = product?.image || productImages[it.productoId]?.[0] || null;
+                                            setAdminPedidoItemPreview({
+                                              nombre: it.nombre,
+                                              image
+                                            });
+                                          }}
+                                          className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold text-white hover:bg-white/10 transition"
+                                        >
+                                          Ver imagen
+                                        </button>
+                                      </div>
+                                      <span className="text-slate-400">${Number(it.subtotal ?? (it.precio * it.cantidad)).toFixed(2)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {p.estado === 'pendiente' && (
+                                <div className="mt-3">
+                                  <button
+                                    onClick={() => updateAdminPedidoEstado(p.id, 'confirmado')}
+                                    className="w-full rounded-lg bg-amber-400 py-2 text-xs font-semibold text-slate-900 hover:bg-amber-300 transition"
+                                  >
+                                    Marcar como confirmado
+                                  </button>
+                                  <button
+                                    onClick={() => updateAdminPedidoEstado(p.id, 'cancelado')}
+                                    className="mt-2 w-full rounded-lg border border-red-500/40 bg-red-500/10 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/20 transition"
+                                  >
+                                    Cancelar pedido
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                        {adminPedidos.filter((p) => p.estado === adminPedidosFiltro).length === 0 && (
+                          <div className="text-center text-slate-400 text-sm py-8">No hay pedidos en este estado</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : adminModalStep === "login" ? (
               <div className="p-6 overflow-y-auto flex-1">
@@ -1668,6 +1957,36 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {adminPedidoItemPreview && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setAdminPedidoItemPreview(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0d1c30] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <div className="text-white font-semibold text-sm truncate pr-3">{adminPedidoItemPreview.nombre}</div>
+              <button
+                type="button"
+                onClick={() => setAdminPedidoItemPreview(null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 transition"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="p-4">
+              {adminPedidoItemPreview.image ? (
+                <div className="relative bg-black rounded-lg overflow-hidden aspect-3/4 w-full">
+                  <img
+                    src={getImageUrl(adminPedidoItemPreview.image)}
+                    alt={adminPedidoItemPreview.nombre}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="text-sm text-slate-300">No hay imagen disponible para este producto.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

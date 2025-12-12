@@ -12,7 +12,8 @@ const ProductoSchema = new mongoose.Schema(
     imagenes: { type: [String], default: [] },
     talles: { type: [String], default: [] },
     colores: { type: [String], default: [] },
-    stock: { type: Number, required: true, min: 0 }
+    stock: { type: Number, required: true, min: 0 },
+    reservadoPendiente: { type: Number, default: 0, min: 0 }
   },
   { timestamps: true }
 );
