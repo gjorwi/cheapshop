@@ -749,7 +749,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-4 py-16">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-white">Ofertas Especiales</h2>
-            <p className="mt-2 text-slate-400">Aprovecha descuentos exclusivos en selected prendas</p>
+            <p className="mt-2 text-slate-400">Aprovecha los descuentos exclusivos.</p>
           </div>
           <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {products.filter(p => p.oldPrice).map((product) => (
