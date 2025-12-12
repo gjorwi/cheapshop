@@ -1,0 +1,23 @@
+{
+  "name": "Cheapshop",
+  "short_name": "Cheapshop",
+  "description": "Cheapshop",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1c30",
+  "theme_color": "#0d1c30",
+  "icons": [
+    {
+      "src": "/logo3.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo3.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
