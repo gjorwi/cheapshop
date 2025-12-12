@@ -827,7 +827,7 @@ export default function Home() {
               className="group overflow-hidden rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition"
             >
               <div
-                className="relative aspect-[4/3] overflow-hidden cursor-pointer"
+                className="relative aspect-4/3 overflow-hidden cursor-pointer"
                 onClick={() => {
                   setSelectedProduct(product);
                   setCurrentImageIndex(0);
@@ -884,7 +884,7 @@ export default function Home() {
                 className="group overflow-hidden rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition"
               >
                 <div
-                  className="relative aspect-[4/3] overflow-hidden cursor-pointer"
+                  className="relative aspect-4/3 overflow-hidden cursor-pointer"
                   onClick={() => {
                     setSelectedProduct(product);
                     setCurrentImageIndex(0);
@@ -939,7 +939,7 @@ export default function Home() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-white">WhatsApp</h3>
-              <p className="mt-2 text-sm text-slate-400">+54 9 11 1234-5678</p>
+              <p className="mt-2 text-sm text-slate-400">+58 412 2918294</p>
             </div>
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10">
@@ -948,7 +948,7 @@ export default function Home() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-white">Email</h3>
-              <p className="mt-2 text-sm text-slate-400">contacto@cheapshop.com</p>
+              <p className="mt-2 text-sm text-slate-400">zulmi13.gra@gmail.com</p>
             </div>
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10">
@@ -958,7 +958,7 @@ export default function Home() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-white">Ubicación</h3>
-              <p className="mt-2 text-sm text-slate-400">Buenos Aires, Argentina</p>
+              <p className="mt-2 text-sm text-slate-400">Coro, Venezuela</p>
             </div>
           </div>
         </div>
@@ -981,7 +981,7 @@ export default function Home() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
         >
           <div
-            className="relative max-w-3xl w-full max-h-[92vh] bg-[#0d1c30] rounded-2xl overflow-hidden border border-white/10 flex flex-col"
+            className="relative max-w-2xl w-full max-h-[92vh] bg-[#0d1c30] rounded-2xl overflow-hidden border border-white/10 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -992,116 +992,120 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <div className="grid md:grid-cols-2 gap-2 md:gap-6">
-              <div className="relative bg-black rounded-lg overflow-hidden h-72 sm:h-72 md:h-[520px]">
-                <img
-                  src={getImageUrl(productImages[selectedProduct.id]?.[currentImageIndex] || selectedProduct.image)}
-                  alt={selectedProduct.name}
-                  className="h-full w-full object-cover"
-                />
-                {/* Flechas de navegación */}
-                <button
-                  onClick={() => setCurrentImageIndex((prev) => prev === 0 ? (productImages[selectedProduct.id]?.length || 1) - 1 : prev - 1)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setCurrentImageIndex((prev) => prev === (productImages[selectedProduct.id]?.length || 1) - 1 ? 0 : prev + 1)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-                {/* Indicadores */}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
-                  {productImages[selectedProduct.id]?.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setCurrentImageIndex(idx)}
-                      className={`h-2 w-2 rounded-full transition ${idx === currentImageIndex ? "bg-white" : "bg-white/40 hover:bg-white/60"}`}
-                    />
-                  ))}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="grid md:grid-cols-2 gap-2 md:gap-6">
+                <div className="relative bg-black rounded-lg overflow-hidden aspect-3/4 w-full max-w-[360px] mx-auto md:mx-0">
+                  <img
+                    src={getImageUrl(productImages[selectedProduct.id]?.[currentImageIndex] || selectedProduct.image)}
+                    alt={selectedProduct.name}
+                    className="h-full w-full object-cover"
+                  />
+                  {/* Flechas de navegación */}
+                  <button
+                    onClick={() => setCurrentImageIndex((prev) => prev === 0 ? (productImages[selectedProduct.id]?.length || 1) - 1 : prev - 1)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setCurrentImageIndex((prev) => prev === (productImages[selectedProduct.id]?.length || 1) - 1 ? 0 : prev + 1)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  {/* Indicadores */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+                    {productImages[selectedProduct.id]?.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        className={`h-2 w-2 rounded-full transition ${idx === currentImageIndex ? "bg-white" : "bg-white/40 hover:bg-white/60"}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="p-2 sm:p-0 flex flex-col justify-center overflow-hidden md:overflow-y-auto md:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="text-lg sm:text-2xl font-bold text-white">{selectedProduct.name}</h2>
+                    <div className="sm:hidden text-right shrink-0">
+                      <div className="text-xs font-medium text-white uppercase tracking-wide">Stock</div>
+                      <div className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-xl sm:text-3xl font-bold text-amber-400">{selectedProduct.price}</span>
+                    {selectedProduct.oldPrice && (
+                      <span className="text-sm sm:text-lg text-slate-500 line-through">{selectedProduct.oldPrice}</span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 sm:mt-3 text-slate-400 text-xs sm:text-sm leading-snug">
+                    {selectedProduct.descripcion || 'Prenda de alta calidad con materiales seleccionados.'}
+                  </p>
+                  
+                  {/* Detalles compactos */}
+                  <div className="mt-2 sm:mt-4 space-y-2 sm:space-y-3">
+                    {(selectedProduct.talles && selectedProduct.talles.length > 0) || (selectedProduct.colores && selectedProduct.colores.length > 0) ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Talles */}
+                        <div>
+                          <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Talla</h4>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedProduct.talles?.map((talle, idx) => (
+                              <span key={idx} className="px-1.5 py-0.5 bg-white/10 text-white text-[11px] rounded-md border border-white/20">
+                                {talle}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Colores */}
+                        <div>
+                          <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Color</h4>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedProduct.colores?.map((color, idx) => (
+                              <span key={idx} className="px-1.5 py-0.5 bg-white/10 text-white text-[11px] rounded-md border border-white/20">
+                                {color}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    
+                    {/* Stock */}
+                    <div className="hidden sm:flex items-center gap-2">
+                      <h4 className="text-xs font-medium text-white uppercase tracking-wide">Stock</h4>
+                      <p className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="p-2 sm:p-6 flex flex-col justify-center overflow-hidden md:overflow-y-auto">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg sm:text-2xl font-bold text-white">{selectedProduct.name}</h2>
-                  <div className="sm:hidden text-right shrink-0">
-                    <div className="text-xs font-medium text-white uppercase tracking-wide">Stock</div>
-                    <div className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="text-xl sm:text-3xl font-bold text-amber-400">{selectedProduct.price}</span>
-                  {selectedProduct.oldPrice && (
-                    <span className="text-sm sm:text-lg text-slate-500 line-through">{selectedProduct.oldPrice}</span>
-                  )}
-                </div>
-                <p className="mt-1.5 sm:mt-3 text-slate-400 text-xs sm:text-sm leading-snug">
-                  {selectedProduct.descripcion || 'Prenda de alta calidad con materiales seleccionados.'}
-                </p>
-                
-                {/* Detalles compactos */}
-                <div className="mt-2 sm:mt-4 space-y-2 sm:space-y-3">
-                  {(selectedProduct.talles && selectedProduct.talles.length > 0) || (selectedProduct.colores && selectedProduct.colores.length > 0) ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* Talles */}
-                      <div>
-                        <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Talla</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedProduct.talles?.map((talle, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 bg-white/10 text-white text-[11px] rounded-md border border-white/20">
-                              {talle}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* Colores */}
-                      <div>
-                        <h4 className="text-xs font-medium text-white mb-1 uppercase tracking-wide">Color</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedProduct.colores?.map((color, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 bg-white/10 text-white text-[11px] rounded-md border border-white/20">
-                              {color}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                  
-                  {/* Stock */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    <h4 className="text-xs font-medium text-white uppercase tracking-wide">Stock</h4>
-                    <p className={`text-xs ${selectedProduct.stock > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {selectedProduct.stock > 0 ? `${selectedProduct.stock} unidades` : 'Sin stock'}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="mt-2 sm:mt-5 flex flex-col gap-2">
-                  <button 
-                    onClick={() => selectedProduct.stock > 0 && addToCart(selectedProduct)}
-                    className={`w-full rounded-lg py-2.5 sm:py-3 text-sm font-semibold transition ${
-                      selectedProduct.stock > 0 
-                        ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' 
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
-                    disabled={selectedProduct.stock <= 0}
-                  >
-                    {selectedProduct.stock > 0 ? 'Agregar al carrito' : 'Sin stock'}
-                  </button>
-                  <button className="w-full rounded-lg border border-white/20 py-2 sm:py-3 text-sm font-medium text-white hover:border-white/40 transition">
-                    Consultar por WhatsApp
-                  </button>
-                </div>
+            </div>
+
+            <div className="sticky bottom-0 border-t border-white/10 bg-[#0d1c30] p-3 sm:p-6">
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => selectedProduct.stock > 0 && addToCart(selectedProduct)}
+                  className={`w-full rounded-lg py-2.5 sm:py-3 text-sm font-semibold transition ${
+                    selectedProduct.stock > 0 
+                      ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' 
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                  disabled={selectedProduct.stock <= 0}
+                >
+                  {selectedProduct.stock > 0 ? 'Agregar al carrito' : 'Sin stock'}
+                </button>
+                <button className="w-full rounded-lg border border-white/20 py-2 sm:py-3 text-sm font-medium text-white hover:border-white/40 transition">
+                  Consultar por WhatsApp
+                </button>
               </div>
             </div>
           </div>
