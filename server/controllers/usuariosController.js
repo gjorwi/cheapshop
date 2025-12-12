@@ -15,6 +15,25 @@ async function getUsuarios(req, res) {
   }
 }
 
+// Middleware para verificar token de forma opcional
+function verifyTokenOptional(req, res, next) {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+
+  if (!token) {
+    req.usuario = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.usuario = decoded;
+    next();
+  } catch (error) {
+    req.usuario = null;
+    next();
+  }
+}
+
 // Registrar nuevo usuario
 async function register(req, res) {
   try {
@@ -145,5 +164,6 @@ module.exports = {
   login,
   getPerfil,
   verifyToken,
+  verifyTokenOptional,
   verifyAdmin
 };

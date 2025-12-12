@@ -25,6 +25,14 @@ export default function Home() {
   const [productImages, setProductImages] = useState({});
   const [cart, setCart] = useState([]);
   const [cartModalOpen, setCartModalOpen] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState('cart');
+  const [checkoutCliente, setCheckoutCliente] = useState({
+    nombre: '',
+    cedula: '',
+    telefono: '',
+    email: ''
+  });
+  const [submittingPedido, setSubmittingPedido] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [imagesModalOpen, setImagesModalOpen] = useState(false);
   const [shouldDeleteImages, setShouldDeleteImages] = useState(false);
@@ -170,6 +178,66 @@ export default function Home() {
     const price = parseFloat(item.price.replace('$', ''));
     return total + (price * item.quantity);
   }, 0);
+
+  const submitPedido = async () => {
+    const { nombre, cedula, telefono, email } = checkoutCliente;
+    if (!nombre || !cedula || !telefono || !email) {
+      alert('Debes completar: nombre, cédula, teléfono y email.');
+      return;
+    }
+
+    if (cart.length === 0) {
+      alert('Tu carrito está vacío');
+      return;
+    }
+
+    const items = cart.map((item) => ({
+      productoId: item.id,
+      nombre: item.name,
+      precio: parseFloat(String(item.price).replace('$', '')),
+      cantidad: item.quantity
+    }));
+
+    setSubmittingPedido(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/pedidos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          items,
+          total: cartTotal,
+          cliente: {
+            nombre,
+            cedula,
+            telefono,
+            email
+          }
+        })
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        alert(data?.error || 'Error al confirmar el pedido');
+        return;
+      }
+
+      setCart([]);
+      setCartModalOpen(false);
+      setCheckoutStep('cart');
+      setCheckoutCliente({ nombre: '', cedula: '', telefono: '', email: '' });
+      alert(`Pedido confirmado. Número de pedido: ${data?.id ?? ''}`);
+    } catch (error) {
+      console.error(error);
+      alert('Error al conectar con el servidor');
+    } finally {
+      setSubmittingPedido(false);
+    }
+  };
 
   // Contador de items en el carrito
   const cartItemsCount = cart.reduce((total, item) => total + item.quantity, 0);
@@ -1404,7 +1472,10 @@ export default function Home() {
             <div className="flex items-center justify-between p-6 border-b border-white/10">
               <h2 className="text-2xl font-bold text-white">Mi Carrito</h2>
               <button
-                onClick={() => setCartModalOpen(false)}
+                onClick={() => {
+                  setCartModalOpen(false);
+                  setCheckoutStep('cart');
+                }}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -1414,6 +1485,50 @@ export default function Home() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-6">
+              {checkoutStep === 'cliente' && cart.length > 0 && (
+                <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-white font-semibold">Datos para confirmar pedido</h3>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm text-slate-300">Nombre</label>
+                      <input
+                        value={checkoutCliente.nombre}
+                        onChange={(e) => setCheckoutCliente({ ...checkoutCliente, nombre: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:border-amber-400 focus:outline-none"
+                        placeholder="Tu nombre"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-300">Cédula</label>
+                      <input
+                        value={checkoutCliente.cedula}
+                        onChange={(e) => setCheckoutCliente({ ...checkoutCliente, cedula: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:border-amber-400 focus:outline-none"
+                        placeholder="V- / E- / número"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-300">Teléfono</label>
+                      <input
+                        value={checkoutCliente.telefono}
+                        onChange={(e) => setCheckoutCliente({ ...checkoutCliente, telefono: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:border-amber-400 focus:outline-none"
+                        placeholder="0412..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-300">Email</label>
+                      <input
+                        type="email"
+                        value={checkoutCliente.email}
+                        onChange={(e) => setCheckoutCliente({ ...checkoutCliente, email: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:border-amber-400 focus:outline-none"
+                        placeholder="tu@email.com"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               {cart.length === 0 ? (
                 <div className="text-center py-12">
                   <svg className="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -1470,14 +1585,33 @@ export default function Home() {
                   <span className="text-2xl font-bold text-amber-400">${cartTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex gap-3">
-                  <button className="flex-1 rounded-lg bg-amber-400 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-300 transition">
-                    Proceder al pago
-                  </button>
+                  {checkoutStep === 'cart' ? (
+                    <button
+                      onClick={() => setCheckoutStep('cliente')}
+                      className="flex-1 rounded-lg bg-amber-400 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-300 transition"
+                    >
+                      Confirmar pedido
+                    </button>
+                  ) : (
+                    <button
+                      onClick={submitPedido}
+                      disabled={submittingPedido}
+                      className="flex-1 rounded-lg bg-amber-400 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-300 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {submittingPedido ? 'Enviando...' : 'Enviar pedido'}
+                    </button>
+                  )}
                   <button 
-                    onClick={() => setCartModalOpen(false)}
+                    onClick={() => {
+                      if (checkoutStep === 'cliente') {
+                        setCheckoutStep('cart');
+                      } else {
+                        setCartModalOpen(false);
+                      }
+                    }}
                     className="flex-1 rounded-lg border border-white/20 py-3 text-sm font-medium text-white hover:border-white/40 transition"
                   >
-                    Seguir comprando
+                    {checkoutStep === 'cliente' ? 'Volver' : 'Seguir comprando'}
                   </button>
                 </div>
               </div>

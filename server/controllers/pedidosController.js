@@ -26,15 +26,24 @@ async function getPedidosUsuario(req, res) {
 // Crear nuevo pedido
 async function createPedido(req, res) {
   try {
-    const { items, total, direccionEnvio } = req.body;
+    const { items, total, cliente } = req.body;
 
     // Validar datos
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'El pedido debe tener al menos un producto' });
     }
 
-    if (!total || !direccionEnvio) {
-      return res.status(400).json({ error: 'Total y dirección de envío son requeridos' });
+    if (total === undefined || total === null) {
+      return res.status(400).json({ error: 'Total es requerido' });
+    }
+
+    if (!cliente || typeof cliente !== 'object') {
+      return res.status(400).json({ error: 'Datos del cliente son requeridos' });
+    }
+
+    const { nombre, cedula, telefono, email } = cliente;
+    if (!nombre || !cedula || !telefono || !email) {
+      return res.status(400).json({ error: 'Nombre, cédula, teléfono y email son requeridos' });
     }
 
     const session = await mongoose.startSession();
@@ -59,7 +68,13 @@ async function createPedido(req, res) {
           [
             {
               id: pedidoId,
-              usuarioId: req.usuario.id,
+              usuarioId: req.usuario?.id ?? null,
+              cliente: {
+                nombre,
+                cedula: String(cedula),
+                telefono: String(telefono),
+                email: String(email)
+              },
               items: items.map(item => ({
                 productoId: item.productoId,
                 nombre: item.nombre,
@@ -68,7 +83,7 @@ async function createPedido(req, res) {
                 subtotal: item.precio * item.cantidad
               })),
               total: parseFloat(total),
-              direccionEnvio,
+              direccionEnvio: '-',
               estado: 'pendiente'
             }
           ],
