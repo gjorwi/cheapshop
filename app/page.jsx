@@ -997,7 +997,7 @@ export default function Home() {
                   </span>
                 )}
                 {product.oldPrice && (
-                  <span className="absolute top-2 left-2 rounded bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                  <span className={`absolute ${Number(product.stock || 0) === 0 ? 'top-8' : 'top-2'} right-2 rounded bg-red-500 px-2 py-0.5 text-xs font-semibold text-white`}>
                     Oferta
                   </span>
                 )}
