@@ -158,6 +158,56 @@ export default function Home() {
     }
   }, [fetchAdminPedidos]);
 
+  const removeAdminPedidoItem = useCallback(async (pedidoId, productoId, maxCantidad) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        alert('No hay sesión de administrador');
+        return;
+      }
+
+      const input = prompt(`Cantidad a quitar (1 - ${maxCantidad}):`, '1');
+      if (input === null) return;
+
+      const cantidad = Number(input);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) {
+        alert('Cantidad inválida');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/pedidos/${pedidoId}/items/remove`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ productoId, cantidad })
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        alert(data?.error || 'Error al modificar item del pedido');
+        return;
+      }
+
+      setAdminPedidos((prev) => prev.map((p) => (p.id === pedidoId ? data : p)));
+
+      try {
+        await loadProducts();
+      } catch (e) {
+        console.error('No se pudo refrescar productos:', e);
+      }
+      try {
+        await fetchAdminPedidos();
+      } catch (e) {
+        console.error('No se pudo refrescar pedidos:', e);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Error al conectar con el servidor');
+    }
+  }, [fetchAdminPedidos]);
+
   useEffect(() => {
     if (adminModalStep !== 'manage') return;
     if (adminTab !== 'pedidos') return;
@@ -1489,6 +1539,15 @@ export default function Home() {
                                         >
                                           Ver imagen
                                         </button>
+                                        {p.estado === 'pendiente' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => removeAdminPedidoItem(p.id, it.productoId, it.cantidad)}
+                                            className="shrink-0 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-semibold text-red-200 hover:bg-red-500/20 transition"
+                                          >
+                                            Quitar
+                                          </button>
+                                        )}
                                       </div>
                                       <span className="text-slate-400">${Number(it.subtotal ?? (it.precio * it.cantidad)).toFixed(2)}</span>
                                     </div>

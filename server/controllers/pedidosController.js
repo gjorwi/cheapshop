@@ -182,9 +182,100 @@ async function updateEstadoPedido(req, res) {
   }
 }
 
+async function removePedidoItem(req, res) {
+  const { id } = req.params;
+  const { productoId, cantidad } = req.body || {};
+
+  const parsedProductoId = Number(productoId);
+  const parsedCantidad = Number(cantidad);
+
+  if (!Number.isFinite(parsedProductoId)) {
+    return res.status(400).json({ error: 'productoId inválido' });
+  }
+  if (!Number.isFinite(parsedCantidad) || parsedCantidad <= 0) {
+    return res.status(400).json({ error: 'cantidad inválida' });
+  }
+
+  const session = await mongoose.startSession();
+  try {
+    let updatedPedido;
+
+    await session.withTransaction(async () => {
+      const pedido = await Pedido.findOne({ id: Number(id) }).session(session);
+      if (!pedido) {
+        throw new Error('PEDIDO_NOT_FOUND');
+      }
+      if (pedido.estado !== 'pendiente') {
+        throw new Error('PEDIDO_NOT_PENDIENTE');
+      }
+
+      const itemIndex = (pedido.items || []).findIndex((it) => Number(it.productoId) === parsedProductoId);
+      if (itemIndex === -1) {
+        throw new Error('ITEM_NOT_FOUND');
+      }
+
+      const item = pedido.items[itemIndex];
+      const removeQty = Math.min(parsedCantidad, Number(item.cantidad));
+
+      const producto = await Producto.findOneAndUpdate(
+        {
+          id: parsedProductoId,
+          reservadoPendiente: { $gte: removeQty }
+        },
+        { $inc: { reservadoPendiente: -removeQty } },
+        { new: true, session }
+      );
+
+      if (!producto) {
+        throw new Error('RESERVA_INVALIDA');
+      }
+
+      const newQty = Number(item.cantidad) - removeQty;
+      if (newQty <= 0) {
+        pedido.items.splice(itemIndex, 1);
+      } else {
+        pedido.items[itemIndex].cantidad = newQty;
+        pedido.items[itemIndex].subtotal = Number(pedido.items[itemIndex].precio) * newQty;
+      }
+
+      pedido.total = (pedido.items || []).reduce((acc, it) => acc + Number(it.subtotal ?? (it.precio * it.cantidad)), 0);
+
+      if ((pedido.items || []).length === 0) {
+        pedido.estado = 'cancelado';
+      }
+
+      await pedido.save({ session });
+      updatedPedido = pedido.toObject();
+    });
+
+    return res.json(updatedPedido);
+  } catch (error) {
+    if (String(error.message || '') === 'PEDIDO_NOT_FOUND') {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    if (String(error.message || '') === 'PEDIDO_NOT_PENDIENTE') {
+      return res.status(400).json({ error: 'Solo se puede modificar un pedido pendiente' });
+    }
+    if (String(error.message || '') === 'ITEM_NOT_FOUND') {
+      return res.status(404).json({ error: 'Item no encontrado en el pedido' });
+    }
+    if (String(error.message || '') === 'RESERVA_INVALIDA') {
+      return res.status(400).json({ error: 'No se pudo devolver la reserva (reserva inválida)' });
+    }
+    if (String(error.message || '').includes('Transaction numbers are only allowed')) {
+      return res.status(500).json({ error: 'MongoDB debe ser Replica Set para transacciones. Usa MongoDB Atlas.' });
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'Error al modificar items del pedido' });
+  } finally {
+    session.endSession();
+  }
+}
+
 module.exports = {
   getPedidos,
   getPedidosUsuario,
   createPedido,
-  updateEstadoPedido
+  updateEstadoPedido,
+  removePedidoItem
 };
